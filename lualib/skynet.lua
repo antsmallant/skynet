@@ -305,7 +305,7 @@ do ---- request/select
 
 	function request_meta:select(timeout)
 		assert(self._thread == nil)
-		self._thread = coroutine_create(request_thread)
+		self._thread = coroutine.create(request_thread)
 		self._error = send_requests(self)
 		self._resp = {}
 		if timeout then
@@ -371,7 +371,7 @@ local coroutine_pool = setmetatable({}, { __mode = "kv" })
 local function co_create(f)
 	local co = tremove(coroutine_pool)
 	if co == nil then
-		co = coroutine_create(function(...)
+		co = coroutine.create(function(...)
 			f(...)
 			while true do
 				local session = session_coroutine_id[co]
