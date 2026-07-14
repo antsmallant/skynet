@@ -93,6 +93,9 @@
 #include "lcode.c"
 #include "lparser.c"
 #include "ldebug.c"
+#if defined(LUA_USE_LUAPROF)
+#include "lprofile.c"
+#endif
 #include "lfunc.c"
 #include "lobject.c"
 #include "ltm.c"

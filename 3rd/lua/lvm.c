@@ -25,6 +25,7 @@
 #include "lgc.h"
 #include "lobject.h"
 #include "lopcodes.h"
+#include "lprofile.h"
 #include "lstate.h"
 #include "lstring.h"
 #include "ltable.h"
@@ -1185,6 +1186,7 @@ void luaV_finishOp (lua_State *L) {
 
 /* fetch an instruction and prepare its execution */
 #define vmfetch()	{ \
+  luaP_safepoint(L); \
   if (l_unlikely(trap)) {  /* stack reallocation or hooks? */ \
     trap = luaG_traceexec(L, pc);  /* handle hooks */ \
     updatebase(ci);  /* correct stack */ \
@@ -1203,9 +1205,11 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
   StkId base;
   const Instruction *pc;
   int trap;
+  luaP_stateguard(profileguard);
 #if LUA_USE_JUMPTABLE
 #include "ljumptab.h"
 #endif
+  luaP_enterstate(L, &profileguard, LUA_PROFILE_LUA, NULL);
  startfunc:
   trap = L->hookmask;
  returning:  /* trap already set */
@@ -1411,6 +1415,7 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
         unsigned b = cast_uint(GETARG_vB(i));  /* log2(hash size) + 1 */
         unsigned c = cast_uint(GETARG_vC(i));  /* array size */
         Table *t;
+        luaP_allocationpc(L, ci, pc);
         if (b > 0)
           b = 1u << (b - 1);  /* hash size is 2^(b - 1) */
         if (TESTARG_k(i)) {  /* non-zero extra argument? */
@@ -1823,8 +1828,10 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
           }
         }
        ret:  /* return from a Lua function */
-        if (ci->callstatus & CIST_FRESH)
+        if (ci->callstatus & CIST_FRESH) {
+          luaP_leaveframe(L, &profileguard, ci->previous);
           return;  /* end this frame */
+        }
         else {
           ci = ci->previous;
           goto returning;  /* continue running caller in this frame */
@@ -1902,6 +1909,7 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
       }}
       vmcase(OP_SETLIST) {
         StkId ra = RA(i);
+        luaP_allocationpc(L, ci, pc);
         unsigned n = cast_uint(GETARG_vB(i));
         unsigned last = cast_uint(GETARG_vC(i));
         Table *h = hvalue(s2v(ra));

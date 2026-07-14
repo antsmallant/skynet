@@ -19,6 +19,7 @@
 #include "lgc.h"
 #include "lmem.h"
 #include "lobject.h"
+#include "lprofile.h"
 #include "lstate.h"
 
 
@@ -152,6 +153,7 @@ void luaM_free_ (lua_State *L, void *block, size_t osize) {
   lua_assert((osize == 0) == (block == NULL));
   callfrealloc(g, block, osize, 0);
   g->GCdebt += cast(l_mem, osize);
+  luaP_allocation(L, block, NULL, osize, 0, 1);
 }
 
 
@@ -180,11 +182,14 @@ void *luaM_realloc_ (lua_State *L, void *block, size_t osize, size_t nsize) {
   newblock = firsttry(g, block, osize, nsize);
   if (l_unlikely(newblock == NULL && nsize > 0)) {
     newblock = tryagain(L, block, osize, nsize);
-    if (newblock == NULL)  /* still no memory? */
+    if (newblock == NULL) {  /* still no memory? */
+      luaP_allocation(L, block, NULL, osize, nsize, 0);
       return NULL;  /* do not update 'GCdebt' */
+    }
   }
   lua_assert((nsize == 0) == (newblock == NULL));
   g->GCdebt -= cast(l_mem, nsize) - cast(l_mem, osize);
+  luaP_allocation(L, block, newblock, osize, nsize, 1);
   return newblock;
 }
 
@@ -206,10 +211,13 @@ void *luaM_malloc_ (lua_State *L, size_t size, int tag) {
     void *newblock = firsttry(g, NULL, cast_sizet(tag), size);
     if (l_unlikely(newblock == NULL)) {
       newblock = tryagain(L, NULL, cast_sizet(tag), size);
-      if (newblock == NULL)
+      if (newblock == NULL) {
+        luaP_allocation(L, NULL, NULL, 0, size, 0);
         luaM_error(L);
+      }
     }
     g->GCdebt -= cast(l_mem, size);
+    luaP_allocation(L, NULL, newblock, 0, size, 1);
     return newblock;
   }
 }

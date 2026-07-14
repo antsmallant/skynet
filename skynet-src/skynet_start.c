@@ -10,6 +10,10 @@
 #include "skynet_daemon.h"
 #include "skynet_harbor.h"
 
+#ifdef SKYNET_LUAPROF
+#include "luaprof/skynet_host.h"
+#endif
+
 #include <pthread.h>
 #include <unistd.h>
 #include <assert.h>
@@ -162,6 +166,9 @@ thread_worker(void *p) {
 	struct skynet_monitor *sm = m->m[id];
 	skynet_initthread(THREAD_WORKER);
 	skynet_handle_register_thread();
+#ifdef SKYNET_LUAPROF
+	lp_skynet_host_worker_start((unsigned int)id);
+#endif
 	struct message_queue * q = NULL;
 	while (!m->quit) {
 		q = skynet_context_message_dispatch(sm, q, weight);
@@ -180,6 +187,9 @@ thread_worker(void *p) {
 			}
 		}
 	}
+#ifdef SKYNET_LUAPROF
+	lp_skynet_host_worker_stop();
+#endif
 	return NULL;
 }
 

@@ -13,6 +13,10 @@
 #include "spinlock.h"
 #include "atomic.h"
 
+#ifdef SKYNET_LUAPROF
+#include "luaprof/skynet_host.h"
+#endif
+
 #include <pthread.h>
 
 #include <string.h>
@@ -265,6 +269,9 @@ dispatch_message(struct skynet_context *ctx, struct skynet_message *msg) {
 	}
 	++ctx->message_count;
 	int reserve_msg;
+#ifdef SKYNET_LUAPROF
+	lp_skynet_host_dispatch_enter(ctx->handle);
+#endif
 	if (ctx->profile) {
 		ctx->cpu_start = skynet_thread_time();
 		reserve_msg = ctx->cb(ctx, ctx->cb_ud, type, msg->session, msg->source, msg->data, sz);
@@ -273,6 +280,9 @@ dispatch_message(struct skynet_context *ctx, struct skynet_message *msg) {
 	} else {
 		reserve_msg = ctx->cb(ctx, ctx->cb_ud, type, msg->session, msg->source, msg->data, sz);
 	}
+#ifdef SKYNET_LUAPROF
+	lp_skynet_host_dispatch_leave();
+#endif
 	if (!reserve_msg) {
 		skynet_free(msg->data);
 	}

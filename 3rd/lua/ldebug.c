@@ -320,7 +320,17 @@ static void collectvalidlines (lua_State *L, Closure *f) {
 }
 
 
-static const char *getfuncname (lua_State *L, CallInfo *ci, const char **name) {
+#if defined(LUA_USE_LUAPROF)
+#define l_getfuncname      luaG_getfuncname
+#define l_getfuncname_def
+#else
+#define l_getfuncname      getfuncname
+#define l_getfuncname_def  static
+#endif
+
+
+l_getfuncname_def const char *l_getfuncname (lua_State *L, CallInfo *ci,
+                                             const char **name) {
   /* calling function is a known function? */
   if (ci != NULL && !(ci->callstatus & CIST_TAIL))
     return funcnamefromcall(L, ci->previous, name);
@@ -366,7 +376,7 @@ static int auxgetinfo (lua_State *L, const char *what, lua_Debug *ar,
         break;
       }
       case 'n': {
-        ar->namewhat = getfuncname(L, ci, &ar->name);
+        ar->namewhat = l_getfuncname(L, ci, &ar->name);
         if (ar->namewhat == NULL) {
           ar->namewhat = "";  /* not found */
           ar->name = NULL;
@@ -976,4 +986,3 @@ int luaG_traceexec (lua_State *L, const Instruction *pc) {
   }
   return 1;  /* keep 'trap' on */
 }
-

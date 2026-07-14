@@ -20,6 +20,7 @@
 #include "lgc.h"
 #include "lmem.h"
 #include "lobject.h"
+#include "lprofile.h"
 #include "lstate.h"
 #include "lstring.h"
 #include "ltable.h"
@@ -1445,6 +1446,8 @@ static void entergen (lua_State *L, global_State *g) {
 */
 void luaC_changemode (lua_State *L, int newmode) {
   global_State *g = G(L);
+  luaP_stateguard(profileguard);
+  luaP_enterstate(L, &profileguard, LUA_PROFILE_GC, NULL);
   if (g->gckind == KGC_GENMAJOR)  /* doing major collections? */
     g->gckind = KGC_INC;  /* already incremental but in name */
   if (newmode != g->gckind) {  /* does it need to change? */
@@ -1455,6 +1458,7 @@ void luaC_changemode (lua_State *L, int newmode) {
       entergen(L, g);
     }
   }
+  luaP_leavestate(L, &profileguard);
 }
 
 
@@ -1534,6 +1538,8 @@ static void deletelist (lua_State *L, GCObject *p, GCObject *limit) {
 */
 void luaC_freeallobjects (lua_State *L) {
   global_State *g = G(L);
+  luaP_stateguard(profileguard);
+  luaP_enterstate(L, &profileguard, LUA_PROFILE_GC, NULL);
   g->gcstp = GCSTPCLS;  /* no extra finalizers after here */
   luaC_changemode(L, KGC_INC);
   separatetobefnz(g, 1);  /* separate all objects with finalizers */
@@ -1543,6 +1549,7 @@ void luaC_freeallobjects (lua_State *L) {
   lua_assert(g->finobj == NULL);  /* no new finalizers */
   deletelist(L, g->fixedgc, NULL);  /* collect fixed objects */
   lua_assert(g->strt.nuse == 0);
+  luaP_leavestate(L, &profileguard);
 }
 
 
@@ -1745,6 +1752,8 @@ static void incstep (lua_State *L, global_State *g) {
 */
 void luaC_step (lua_State *L) {
   global_State *g = G(L);
+  luaP_stateguard(profileguard);
+  luaP_enterstate(L, &profileguard, LUA_PROFILE_GC, NULL);
   lua_assert(!g->gcemergency);
   if (!gcrunning(g)) {  /* not running? */
     if (g->gcstp & GCSTPUSR)  /* stopped by the user? */
@@ -1763,6 +1772,7 @@ void luaC_step (lua_State *L) {
     }
     luai_tracegc(L, 0);  /* for internal debugging */
   }
+  luaP_leavestate(L, &profileguard);
 }
 
 
@@ -1791,6 +1801,8 @@ static void fullinc (lua_State *L, global_State *g) {
 */
 void luaC_fullgc (lua_State *L, int isemergency) {
   global_State *g = G(L);
+  luaP_stateguard(profileguard);
+  luaP_enterstate(L, &profileguard, LUA_PROFILE_GC, NULL);
   lua_assert(!g->gcemergency);
   g->gcemergency = cast_byte(isemergency);  /* set flag */
   switch (g->gckind) {
@@ -1803,8 +1815,7 @@ void luaC_fullgc (lua_State *L, int isemergency) {
       break;
   }
   g->gcemergency = 0;
+  luaP_leavestate(L, &profileguard);
 }
 
 /* }====================================================== */
-
-

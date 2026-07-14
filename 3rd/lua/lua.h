@@ -143,6 +143,59 @@ typedef struct lua_Debug lua_Debug;
 typedef void (*lua_Hook) (lua_State *L, lua_Debug *ar);
 
 
+#if defined(LUA_USE_LUAPROF)
+/*
+** Functions used by sampling profilers at VM-safe boundaries.
+** Callbacks must not call Lua, allocate through Lua, or raise errors.
+** Safe-point and allocation callbacks may call
+** 'lua_profile_capturestack'. During an allocation that moves the Lua stack,
+** capture returns no frames and reports truncation.
+*/
+#define LUA_PROFILE_ABI_VERSION  2
+
+#define LUA_PROFILE_HOST  0
+#define LUA_PROFILE_LUA   1
+#define LUA_PROFILE_C     2
+#define LUA_PROFILE_GC    3
+
+#define LUA_PROFILE_FRAME_LUA  0
+#define LUA_PROFILE_FRAME_C    1
+
+typedef struct lua_ProfileAllocEvent {
+  void *old_pointer;
+  void *new_pointer;
+  size_t old_size;
+  size_t new_size;
+  unsigned char success;
+} lua_ProfileAllocEvent;
+
+typedef struct lua_ProfileFrame {
+  const void *function;
+  const char *source;
+  size_t source_length;
+  const char *name;
+  size_t name_length;
+  lua_CFunction cfunction;
+  int linedefined;
+  int currentline;
+  unsigned char kind;
+} lua_ProfileFrame;
+
+typedef void (*lua_ProfileSafePoint) (void *ud, lua_State *L,
+                                      unsigned int pending);
+typedef void (*lua_ProfileStateChange) (void *ud, lua_State *L, int state,
+                                        lua_CFunction cfunction);
+typedef void (*lua_ProfileAllocation) (void *ud, lua_State *L,
+                                       const lua_ProfileAllocEvent *event);
+
+typedef struct lua_ProfileHooks {
+  lua_ProfileSafePoint safe_point;
+  lua_ProfileStateChange state_change;
+  lua_ProfileAllocation allocation;
+} lua_ProfileHooks;
+#endif
+
+
 /*
 ** generic extra include file
 */
@@ -169,6 +222,18 @@ LUA_API lua_CFunction (lua_atpanic) (lua_State *L, lua_CFunction panicf);
 
 
 LUA_API lua_Number (lua_version) (lua_State *L);
+
+#if defined(LUA_USE_LUAPROF)
+LUA_API void (lua_setprofilehooks) (lua_State *L,
+                                    const lua_ProfileHooks *hooks, void *ud);
+LUA_API void (lua_profile_request) (lua_State *L, unsigned int count);
+LUA_API int (lua_getprofilestate) (lua_State *L,
+                                   lua_CFunction *cfunction);
+LUA_API size_t (lua_profile_capturestack) (lua_State *L,
+                                           lua_ProfileFrame *frames,
+                                           size_t capacity,
+                                           int *truncated);
+#endif
 
 
 /*
